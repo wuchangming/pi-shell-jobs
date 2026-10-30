@@ -3,3 +3,4 @@ node_modules/
 .DS_Store
 coverage/
 test-output.log
+package-test-output.log

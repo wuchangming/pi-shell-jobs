@@ -20,7 +20,9 @@
   "scripts": {
     "check": "tsc --noEmit",
     "test": "npm run check && tsx --test tests/*.test.ts",
-    "test:tui": "node --test tests/tui-*.test.mjs"
+    "test:tui": "node --test tests/tui-*.test.mjs",
+    "test:integration": "tsx --test tests/cli-*.test.ts tests/codemode-cli.test.ts",
+    "test:package": "node --test tests/package-install.test.mjs"
   },
   "engines": {
     "node": ">=22.19.0"
@@ -30,7 +32,10 @@
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
-    "docs"
+    "docs",
+    "examples",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md"
   ],
   "pi": {
     "extensions": [
@@ -58,5 +63,8 @@
   },
   "overrides": {
     "undici": "^8.12.2"
+  },
+  "bugs": {
+    "url": "https://github.com/wuchangming/pi-shell-jobs/issues"
   }
 }

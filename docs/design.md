@@ -135,6 +135,23 @@ Other reviewed primary sources:
 - `pi-background-jobs` 0.1.3 (published npm source): separate task outcome and
   cleanup evidence, storage limits and native Windows considerations.
 
+## Documentation and integration review (2026-10-31)
+
+Reviewed the public documentation and packaging of these projects alongside
+Pi's [package guide](https://github.com/earendil-works/pi/blob/v1.4.0/packages/coding-agent/docs/packages.md):
+
+| Reference | Useful pattern | Applied here |
+| --- | --- | --- |
+| [pi-messenger](https://github.com/nicobailon/pi-messenger) | Installation followed by concrete workflows; configuration and usage examples are easy to find. | Lead with installation and natural-language tasks; move detailed contracts into linked guides. |
+| [Pringled/pi-background](https://github.com/Pringled/pi-extensions/tree/main/packages/pi-background) | Explain the user-visible behavior, status display and natural-language request before tool details. | Document the sessions picker, waiting versus stopping, and completion behavior before implementation details. |
+| [pi-subagents](https://github.com/agrigoryan/pi-subagents) | Make bounded execution, background collection and lifecycle caveats explicit beside examples. | Pair recipes with expected results, resource limits and reload/shutdown boundaries. |
+| [pi-unified-exec](https://github.com/iamwrm/pi-unified-exec) | Detailed terminal, control-byte and compatibility documentation, with executable regressions. | Retain transport detail in the reference; add shipped Node examples and install the packed artifact in a real Pi host. |
+
+The examples are ordinary Node programs, not extra extensions or model-facing
+skills. They do not enlarge Pi's default prompt or register additional tools.
+Tests use the public Pi installation and loader paths in isolated directories;
+they never alter the user's personal Pi configuration.
+
 ## Release verification
 
 `npm test` includes unit tests, actual child processes, PTYs and offline real
@@ -155,12 +172,15 @@ Local verification on 2026-10-31 (macOS, Node 24.11.1):
 
 | Check | Result |
 | --- | --- |
-| `EXPECT_PTY=1 npm test` | 357 tests: 352 passed, 5 Windows-only cases skipped; no failures. |
-| Actual Pi CLI | Execution, native codemode, steering and fresh-factory reload tests passed offline. |
+| `EXPECT_PTY=1 npm test` | 360 tests: 355 passed, 5 Windows-only cases skipped; no failures. |
+| Actual Pi CLI | Execution, native codemode, steering and fresh-factory reload tests passed offline. Native terminal completion, Esc, steering and normal shutdown also passed. |
 | `npm audit --audit-level=high` | Zero reported vulnerabilities in the locked development/install tree. |
-| `npm pack --dry-run` | Package manifest, sources, license, notices and design documentation included. |
+| `npm run test:package` | Packed and production-installed outside the checkout; Pi discovered the package and executed all five tools, including EOF and PTY input/resize. Documentation, examples and notices included. |
 | Optional tmux display tests | 3 skipped: tmux is not installed on the local machine. |
-| Windows / Linux | Native CI matrix configured; not executed locally. |
+| Windows / Linux | Verified by native CI, not by the local macOS run. See the current [workflow results](https://github.com/wuchangming/pi-shell-jobs/actions/workflows/ci.yml) for the tested commit. |
+
+See [testing](testing.md) for the coverage map and manual checks. Scripted
+providers verify host integration; live-model behavior is a separate check.
 
 The repository overrides the development host's transitive `undici` dependency
 to the patched 8.12.2-compatible line. Package overrides do not modify an
