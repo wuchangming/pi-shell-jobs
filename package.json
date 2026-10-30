@@ -1,6 +1,6 @@
 {
   "name": "pi-shell-jobs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Supervised shell jobs for Pi: interactive terminals, bounded output, deadlines, reload continuity and completion notifications.",
   "keywords": [
     "pi-package",
@@ -38,6 +38,7 @@
     "CONTRIBUTING.md"
   ],
   "pi": {
+    "image": "https://raw.githubusercontent.com/wuchangming/pi-shell-jobs/v0.1.1/assets/demo.gif",
     "extensions": [
       "./src/index.ts"
     ]

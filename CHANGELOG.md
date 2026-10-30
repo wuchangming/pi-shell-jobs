@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.1.0 — 2026-10-31
+## [0.1.1] - 2026-10-31
+
+- Add a real Pi terminal GIF to the README and package gallery preview.
+  Model decisions are scripted; the extension and Node REPL run for real.
+- Include a static preview and reproducible recording scripts in the repository.
+  Media stays outside the npm tarball. No runtime behavior changes.
+
+## [0.1.0] - 2026-10-31
 
 Initial public release.
 
