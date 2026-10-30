@@ -17,18 +17,21 @@ adapted from `pi-unified-exec`; see [attribution](THIRD_PARTY_NOTICES.md).
 With Pi already installed:
 
 ```sh
-pi install git:github.com/wuchangming/pi-shell-jobs
+pi install npm:pi-shell-jobs
 ```
 
-Start a new Pi session, or run `/reload` in the current one. This installs from
-GitHub; the package is not yet published to npm. Add `--local` for a project-only
-install. For reproducible installs, append `@<full-commit-sha>` to the Git source.
+Start a new Pi session, or run `/reload` in the current one. Add `--local` for a
+project-only install. Use `npm:pi-shell-jobs@0.1.0` to pin this release.
 
 ```sh
 pi list
-pi update git:github.com/wuchangming/pi-shell-jobs
-pi remove git:github.com/wuchangming/pi-shell-jobs
+pi update npm:pi-shell-jobs
+pi remove npm:pi-shell-jobs
 ```
+
+To follow development instead, install `git:github.com/wuchangming/pi-shell-jobs`.
+Append `@<full-commit-sha>` to pin a Git revision. Use the same source when
+updating or removing it; choose one installation method to avoid duplicate tools.
 
 The extension replaces the active `bash` and `powershell` tools by default.
 Use `pi --keep-builtin-bash` to retain them. Disable other extensions registering

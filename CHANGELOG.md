@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 — 2026-10-31
+
+Initial public release.
 
 - Add GitHub installation, practical recipes, runnable cross-platform examples,
   troubleshooting, contribution guidance and an explicit integration coverage map.
@@ -8,10 +10,6 @@
   steering and normal shutdown, without requiring tmux.
 - Verify a production-installed tarball through Pi's package discovery and all
   five tools, including pipe EOF and interactive terminal input/resize.
-
-## 0.1.0 — initial repository version
-
-Not yet published to npm.
 
 - Supervised shell jobs with pipes and native PTYs, finite hard deadlines,
   bounded output/logging, serialized interaction and explicit stop.

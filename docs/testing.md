@@ -60,7 +60,8 @@ another OS can still be skipped intentionally.
   not pixel-perfect rendering in every terminal emulator, theme or font.
 - **Git hosting / registry conditions:** the artifact test uses Pi's local
   installation path. Git clone authentication, remote updates and npm registry
-  publication are separate concerns; no npm release is currently published.
+  publication are separate concerns. Release verification additionally installs
+  the published npm version in an isolated Pi configuration and runs the examples.
 - **Detached descendants / crash recovery:** the package does not promise
   process-tree proof or reattachment after a Pi crash. Tests cannot turn these
   documented limitations into guarantees.
