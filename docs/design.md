@@ -67,6 +67,11 @@ commands until those old children settle.
 
 ## Termination evidence
 
+The session owns POSIX termination escalation and records whether a graceful
+signal was upgraded to SIGKILL. Tool results use that record, including when
+the session's deadline timer initiated the stop. An explicit initial SIGKILL
+is not an escalation. Windows already uses forceful tree termination.
+
 POSIX pipes use a separate process group; termination addresses the group.
 PTY termination also attempts the process group. Windows uses the absolute
 system path to `taskkill.exe /T /F`, and PTYs use ConPTY through the optional
@@ -150,7 +155,7 @@ Local verification on 2026-10-31 (macOS, Node 24.11.1):
 
 | Check | Result |
 | --- | --- |
-| `EXPECT_PTY=1 npm test` | 356 tests: 351 passed, 5 Windows-only cases skipped; no failures. |
+| `EXPECT_PTY=1 npm test` | 357 tests: 352 passed, 5 Windows-only cases skipped; no failures. |
 | Actual Pi CLI | Execution, native codemode, steering and fresh-factory reload tests passed offline. |
 | `npm audit --audit-level=high` | Zero reported vulnerabilities in the locked development/install tree. |
 | `npm pack --dry-run` | Package manifest, sources, license, notices and design documentation included. |

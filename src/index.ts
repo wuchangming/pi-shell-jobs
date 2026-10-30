@@ -780,17 +780,9 @@ async function terminateSessionById(
 	// BEFORE signaling so the induced exit can never race a wake enqueue.
 	ctx.coordinator.suppress(sid);
 	session.kill(initial);
-	// Event-driven wait (resolves the instant the exit fires): up to 2s.
-	await waitForExitOrDeadline({ exited: session.exited, durationMs: 2000 });
-	let escalated = false;
-	// On Windows every kill is already a force tree-kill (taskkill /T /F);
-	// a "SIGKILL escalation" would spawn a byte-identical taskkill that
-	// cannot behave differently, so skip it there.
-	if (!session.hasExited && !IS_WINDOWS) {
-		session.kill("SIGKILL");
-		escalated = true;
-		await waitForExitOrDeadline({ exited: session.exited, durationMs: 500 });
-	}
+	// ExecSession owns the 2s escalation timer, including unattended stops.
+	// Allow another 500ms for SIGKILL to land; do not race a second timer.
+	await waitForExitOrDeadline({ exited: session.exited, durationMs: IS_WINDOWS ? 2000 : 2500 });
 	// Final drain.
 	const collected = await session.collect({ deadlineMs: Date.now() + 100 });
 	const killed = session.hasExited;
@@ -802,7 +794,7 @@ async function terminateSessionById(
 		// Restore its prior wake eligibility.
 		ctx.coordinator.restoreAfterFailedKill(sid);
 	}
-	return { session, escalated, collected, killed };
+	return { session, escalated: session.escalated, collected, killed };
 }
 
 function runningSessions(ctx: ExtensionCtx): ExecSession[] {

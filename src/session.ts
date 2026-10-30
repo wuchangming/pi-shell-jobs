@@ -64,6 +64,10 @@ export class ExecSession {
 	private logStream: WriteStream | undefined;
 	private deadlineTimer?: NodeJS.Timeout;
 	private escalationTimer?: NodeJS.Timeout;
+	private stopSignal?: NodeJS.Signals;
+	private didEscalate = false;
+	/** Whether a graceful stop was upgraded to SIGKILL by any caller. */
+	get escalated(): boolean { return this.didEscalate; }
 	private stopReason?: StopReason;
 	private logBytes = 0;
 	private logTruncated = false;
@@ -255,12 +259,19 @@ export class ExecSession {
 
 	requestStop(reason: StopReason, signal: NodeJS.Signals = "SIGTERM"): void {
 		if (this.hasExited) return;
+		if (signal === "SIGKILL") {
+			if (process.platform !== "win32" && this.stopSignal && this.stopSignal !== "SIGKILL") this.didEscalate = true;
+			clearTimeout(this.escalationTimer);
+			this.escalationTimer = undefined;
+		}
+		this.stopSignal = signal;
 		this.stopReason ??= reason;
 		if (reason === "timed_out") this.recordFailure("Hard runtime deadline exceeded");
 		this.child.kill(signal);
-		if (!this.escalationTimer && signal !== "SIGKILL") {
+		// Windows already uses taskkill /T /F for every signal.
+		if (!this.escalationTimer && signal !== "SIGKILL" && process.platform !== "win32") {
 			this.escalationTimer = setTimeout(() => {
-				if (!this.hasExited) this.child.kill("SIGKILL");
+				this.requestStop(reason, "SIGKILL");
 			}, 2000);
 			this.escalationTimer.unref();
 		}

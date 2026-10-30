@@ -48,7 +48,17 @@ test("deadline escalates a child that ignores SIGTERM", { skip: process.platform
 	try {
 		await finish(s);
 		assert.equal(s.signal, "SIGKILL");
+		assert.equal(s.escalated, true);
 		assert.equal(s.supervision.stop_reason, "timed_out");
+	} finally { await dispose(s); }
+});
+
+test("an explicitly requested SIGKILL is not reported as escalation", async () => {
+	const s = start('setInterval(() => {}, 1000)');
+	try {
+		s.kill("SIGKILL");
+		await finish(s);
+		assert.equal(s.escalated, false);
 	} finally { await dispose(s); }
 });
 
