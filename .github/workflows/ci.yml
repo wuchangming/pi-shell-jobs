@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.platform.name }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Windows
+            runner: windows-2025
+            os: win32
+            arch: x64
+          - name: macOS Intel
+            runner: macos-15-intel
+            os: darwin
+            arch: x64
+          - name: macOS Apple Silicon
+            runner: macos-15
+            os: darwin
+            arch: arm64
+          - name: Linux
+            runner: ubuntu-24.04
+            os: linux
+            arch: x64
+        node: ["22", "24"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          architecture: ${{ matrix.platform.arch }}
+          cache: npm
+
+      - name: Verify native runtime
+        env:
+          EXPECTED_OS: ${{ matrix.platform.os }}
+          EXPECTED_ARCH: ${{ matrix.platform.arch }}
+        run: node -e "const a=require('node:assert/strict'); console.log(process.version,process.platform,process.arch); a.equal(process.platform,process.env.EXPECTED_OS); a.equal(process.arch,process.env.EXPECTED_ARCH)"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Direct execution streams individual test progress if ConPTY hangs.
+      - name: Windows PTY diagnostics
+        if: runner.os == 'Windows'
+        run: npx tsx tests/pty-load.test.ts && npx tsx tests/e2e-pty.test.ts
+        timeout-minutes: 5
+        env:
+          EXPECT_PTY: "1"
+
+      - name: Test
+        shell: bash
+        run: npm test 2>&1 | tee test-output.log
+        timeout-minutes: 10
+        env:
+          # A missing native module must fail, not silently skip PTY coverage.
+          EXPECT_PTY: "1"
+
+      - name: Verify installable package
+        run: npm pack --dry-run
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Save test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ matrix.platform.runner }}-node-${{ matrix.node }}
+          path: test-output.log
+          if-no-files-found: ignore
+          retention-days: 7

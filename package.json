@@ -1,0 +1,62 @@
+{
+  "name": "pi-shell-jobs",
+  "version": "0.1.0",
+  "description": "Supervised shell jobs for Pi: interactive terminals, bounded output, deadlines, reload continuity and completion notifications.",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "shell",
+    "jobs",
+    "pty"
+  ],
+  "license": "MIT",
+  "author": "Changming Wu",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wuchangming/pi-shell-jobs.git"
+  },
+  "homepage": "https://github.com/wuchangming/pi-shell-jobs#readme",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "npm run check && tsx --test tests/*.test.ts",
+    "test:tui": "node --test tests/tui-*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "docs"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.4.0 <2",
+    "@earendil-works/pi-tui": ">=1.4.0 <2",
+    "typebox": "*"
+  },
+  "optionalDependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "0.13.1"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.12",
+    "typebox": "1.3.27",
+    "typescript": "^5.6.0"
+  },
+  "overrides": {
+    "undici": "^8.12.2"
+  }
+}
