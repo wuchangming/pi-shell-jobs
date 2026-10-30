@@ -12,6 +12,13 @@ within the same Pi process.
 No tmux, WSL or external daemon is required. This is an independent package
 adapted from `pi-unified-exec`; see [attribution](THIRD_PARTY_NOTICES.md).
 
+![Pi starts an interactive Node REPL, sends 6 * 7 to the same session, receives 42, and exits.](https://raw.githubusercontent.com/wuchangming/pi-shell-jobs/main/assets/demo.gif)
+
+Real Pi, real tools, real Node REPL; model decisions are scripted for a
+reproducible demo. [Static image](https://raw.githubusercontent.com/wuchangming/pi-shell-jobs/main/assets/demo.png)
+· [Reproduce the recording](https://github.com/wuchangming/pi-shell-jobs/tree/main/scripts/demo)
+· [Pi package catalog](https://pi.dev/packages/pi-shell-jobs).
+
 ## Install
 
 With Pi already installed:
