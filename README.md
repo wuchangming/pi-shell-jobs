@@ -1,6 +1,7 @@
 # pi-shell-jobs
 
 [![CI](https://github.com/wuchangming/pi-shell-jobs/actions/workflows/ci.yml/badge.svg)](https://github.com/wuchangming/pi-shell-jobs/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/pi-shell-jobs.svg)](https://www.npmjs.com/package/pi-shell-jobs)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Run long commands and interactive terminals inside [Pi](https://github.com/earendil-works/pi),
