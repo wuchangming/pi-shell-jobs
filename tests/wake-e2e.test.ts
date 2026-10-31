@@ -8,7 +8,9 @@
  */
 
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import extensionFactory from "../src/index.ts";
 
@@ -130,6 +132,59 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A strict-format future UTC deadline (toISOString matches the accepted grammar). */
 const inFuture = (ms: number) => new Date(Date.now() + ms).toISOString();
+
+describe("immediate output reads", () => {
+	for (const terminalError of [false, true]) it(`reads deltas without waiting; terminal finalization error=${terminalError}`, async () => {
+		const root = mkdtempSync(join(tmpdir(), "jobs-immediate-"));
+		const h = makeHarness();
+		try {
+			writeFileSync(join(root, "job.cjs"), `
+const fs = require('node:fs');
+let phase = 0;
+const tick = setInterval(() => {
+  if (!phase && fs.existsSync('progress')) { console.log('phase-two'); phase = 1; }
+  if (fs.existsSync('finish')) { console.log('final-result'); clearInterval(tick); }
+}, 20);
+`);
+			await h.emit("session_start");
+			const started = await h.call("exec_command", { cmd: "node job.cjs", workdir: root, yield_time_ms: 250, on_exit: "wake" });
+			const sid = started.details.session_id;
+			assert.equal(typeof sid, "number");
+			await h.finalizeTool(started.toolCallId);
+			writeFileSync(join(root, "progress"), "");
+			assert.ok(await waitFor(() => readFileSync(started.details.log_path, "utf8").includes("phase-two")));
+			const cancelled = new AbortController();
+			cancelled.abort();
+			await assert.rejects(h.call("write_stdin", { session_id: sid, yield_time_ms: 0 }, cancelled.signal), /cancelled before collection/);
+			// A regression to the old five-second minimum returns cancelled instead of snapshot.
+			const read = await h.call("write_stdin", { session_id: sid, yield_time_ms: 0 }, AbortSignal.timeout(2000));
+			assert.equal(read.details.wait_mode, "immediate");
+			assert.equal(read.details.wait_status, "snapshot");
+			assert.match(read.details.output, /phase-two/);
+			await h.finalizeTool(read.toolCallId);
+			const empty = await h.call("write_stdin", { session_id: sid, yield_time_ms: 0 }, AbortSignal.timeout(2000));
+			assert.equal(empty.details.output, "");
+			assert.equal(empty.details.running, true);
+			await h.finalizeTool(empty.toolCallId);
+			writeFileSync(join(root, "finish"), "");
+			assert.ok(await waitFor(async () => (await h.call("list_sessions", {})).details.active_count === 0));
+			// Even an already-exited session must keep output after a pre-cancelled read.
+			await assert.rejects(h.call("write_stdin", { session_id: sid, yield_time_ms: 0 }, cancelled.signal), /cancelled before collection/);
+			const terminal = await h.call("write_stdin", { session_id: sid, yield_time_ms: 0 });
+			assert.equal(terminal.details.wait_status, "completed");
+			assert.match(terminal.details.output, /final-result/);
+			await sleep(300);
+			assert.equal(h.sentMessages.length, 0, "terminal result waits for Pi finalization");
+			await h.finalizeTool(terminal.toolCallId, terminalError);
+			await h.emit("agent_settled");
+			assert.equal(h.sentMessages.length, terminalError ? 1 : 0);
+			if (terminalError) assert.match(readFileSync(started.details.log_path, "utf8"), /final-result/);
+		} finally {
+			await h.shutdown();
+			rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+		}
+	});
+});
 
 describe("write_stdin yield_until", () => {
 	it("rejects yield_time_ms and yield_until together", async () => {
@@ -517,7 +572,7 @@ describe("exec_command on_exit", () => {
 		const r2 = await h.call("set_on_exit", { session_id: sid, on_exit: "none" });
 		assert.equal(r2.details.status, "disarmed");
 		assert.equal(r2.details.wake_armed, false);
-		// Wait until the process is gone (list reaps it) then confirm no wake.
+		// Wait until the process exits without consuming its output, then confirm no wake.
 		assert.ok(
 			await waitFor(async () => {
 				const l = await h.call("list_sessions", {});
@@ -588,13 +643,13 @@ describe("exec_command on_exit", () => {
 		assert.equal(h.sentMessages.length, 0);
 	});
 
-	it("list_sessions observing the exit before notification suppresses the wake", async () => {
+	it("list_sessions and the human picker preserve completed output and its wake", async () => {
 		const h = makeHarness();
 		await h.emit("session_start");
 		const r1 = await h.call("exec_command", { cmd: "sleep 0.3", yield_time_ms: 250, on_exit: "wake" });
 		const sid = r1.details.session_id;
 		assert.ok(typeof sid === "number");
-		// Poll until list_sessions can reap the exit (race with debounce).
+		// Inspect repeatedly without acknowledging completion.
 		let entry: any;
 		assert.ok(
 			await waitFor(async () => {
@@ -605,7 +660,14 @@ describe("exec_command on_exit", () => {
 			"expected list_sessions to observe exit",
 		);
 		await sleep(400); // remaining debounce budget if any
-		assert.ok(h.sentMessages.length <= 1, `never more than one notification; got ${h.sentMessages.length}`);
+		assert.equal(h.sentMessages.length, 1);
+		await h.invokeCommand("shell-jobs-sessions");
+		const listed = await h.call("list_sessions", {});
+		assert.equal(listed.details.completed_count, 1);
+		const result = await h.call("write_stdin", { session_id: sid, yield_time_ms: 0 });
+		assert.equal(result.details.exit_code, 0);
+		await h.finalizeTool(result.toolCallId);
+		assert.equal(h.sentMessages.length, 1);
 	});
 
 	it("session_shutdown cancels pending wakes (no stale prompt)", async () => {
@@ -661,7 +723,7 @@ describe("exec_command on_exit", () => {
 		// Wait past natural exit + failed debounce flush (no message yet).
 		assert.ok(
 			await waitFor(async () => {
-				// Process has exited if write_stdin can get terminal or list reaps —
+				// Process has exited if write_stdin can get terminal or list reports it —
 				// here we just ensure the first send attempt had time to fail.
 				await sleep(50);
 				return h.sentMessages.length === 0;

@@ -11,7 +11,7 @@
 | Terminal echoes input but does not execute it | Submit with `\r`, not just `\n`, for Windows-compatible Enter. |
 | Program waits forever after consuming input | If it expects EOF, use `end_stdin: true` with a pipe job. A PTY needs its program's normal exit command. |
 | Esc or a steering message did not kill the process | Expected: these interrupt the attached wait. Use explicit stop or the sessions picker. |
-| No completion notification | `on_exit` defaults to `none`. An observed exit consumes an armed wake; explicit stop suppresses it. Check `wake_armed` in `list_sessions`. |
+| No completion notification | `on_exit` defaults to `none`. A collected terminal result consumes an armed wake; listing alone does not; explicit stop suppresses it. Check `wake_armed` in `list_sessions`. |
 | Output stops before the command finishes | Inspect `supervision.state`, `log_truncated` and the retained log. A log quota or storage failure stops the job; a normal tool yield does not. |
 | `unknown session_id` | Use the actual returned ID. Completed/collected jobs may have left the registry. New sessions or Pi restarts cannot reattach to an old ID. |
 | `already has an attached reader/writer` | Wait for the current input/poll call to return. Only one reader/writer can attach to a job; explicit stop remains available. |

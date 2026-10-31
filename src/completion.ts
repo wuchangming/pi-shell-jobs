@@ -5,7 +5,7 @@ import { formatElapsedShort } from "./format-time.ts";
  * `exec_command(on_exit: "wake")`, kept deliberately separate from the
  * low-level ExecSession process transport.
  *
- * The central exactly-once invariant:
+ * The normal-path deduplication invariant (not an end-to-end delivery receipt):
  *
  *     Terminal completion is delivered through a finalized tool result
  *                              OR
@@ -20,8 +20,9 @@ import { formatElapsedShort } from "./format-time.ts";
  *     active, process exit is recorded but a wake is never enqueued.
  *   - "Observed" is committed at Pi's finalized tool-result event
  *     (`tool_execution_end` with isError=false), NOT merely when the handler
- *     returns — a result that was constructed but finalized as error/cancelled
- *     keeps the completion wake-eligible.
+ *     returns. Nested calls transfer their lease to the enclosing tool; its
+ *     result includes a bounded recovery receipt. Error/cancellation keeps
+ *     completion wake-eligible. Retained nested output can be read again.
  *   - Wake records are RESERVED (wakeQueued=true) before sending, so
  *     concurrent flush triggers can never double-send; a failed send un-reserves
  *     and is retried at the next flush trigger.
@@ -154,10 +155,10 @@ export class CompletionCoordinator {
 	}
 
 	/**
-	 * Arm `on_exit: "wake"` for a session. Call ONLY once exec_command has
-	 * committed to returning a background session_id. Handles the boundary
+	 * Arm `on_exit: "wake"` once exec_command returns a background handle or a
+	 * recoverable nested terminal result awaiting its enclosing tool. Handles the boundary
 	 * race: if the process already exited (or exits immediately after), the
-	 * exit listener fires and the completion is still delivered exactly once.
+	 * exit listener fires and the completion remains eligible for one submission.
 	 */
 	register(session: CompletionSessionLike): void {
 		if (this.stopped) return;
@@ -283,12 +284,17 @@ export class CompletionCoordinator {
 	 * observations on success; releases the lease (keeping the wake eligible)
 	 * on error/cancellation. Also cleans up any stale lease for this call ID.
 	 */
-	handleToolExecutionEnd(toolCallId: string, isError: boolean): void {
+	handleToolExecutionEnd(toolCallId: string, isError: boolean, parentToolCallId?: string): void {
 		for (const r of this.records.values()) {
 			if (r.pendingTerminal.has(toolCallId)) {
 				r.pendingTerminal.delete(toolCallId);
 				r.observers.delete(toolCallId);
-				if (!isError) {
+				if (!isError && parentToolCallId) {
+					// A nested result reaches only its caller. Hold the observation
+					// until the outer result (with its recovery receipt) is finalized.
+					r.observers.add(parentToolCallId);
+					r.pendingTerminal.add(parentToolCallId);
+				} else if (!isError) {
 					this.commitObserved(r);
 				} else if (r.exited) {
 					this.scheduleFlush();
@@ -306,19 +312,6 @@ export class CompletionCoordinator {
 	private commitObserved(record: CompletionRecord): void {
 		record.observed = true;
 		this.resolveRecord(record);
-	}
-
-	/**
-	 * list_sessions (or another status read) reported terminal completion.
-	 * If the wake was not yet queued, that report counts as direct observation
-	 * and suppresses the wake; if a wake was already queued/sent, the session
-	 * may be reaped without generating another notification.
-	 */
-	observeViaListing(sessionId: number): void {
-		const r = this.records.get(sessionId);
-		if (!r) return;
-		if (r.wakeQueued) return;
-		this.commitObserved(r);
 	}
 
 	// ---------------- Kill / eviction / shutdown suppression ----------------
@@ -500,9 +493,9 @@ export function buildWakeMessage(snapshots: CompletionSnapshot[]): WakeMessage {
 		lines.push(`… and ${snapshots.length - shown.length} more (use list_sessions).`);
 	}
 	lines.push(
-		"Final output has NOT necessarily been consumed: call write_stdin with no chars for each exited " +
+		"Final output has NOT necessarily been consumed: call write_stdin with no chars and yield_time_ms: 0 for each exited " +
 			"session_id to drain its final output, or read the log_path (if a session_id is no longer known, " +
-			"use the log_path). Then continue the original task — do not merely acknowledge this notification.",
+			"use the log_path). If the job is still relevant, continue the original request using its result; do not restart abandoned work or merely acknowledge this notification.",
 	);
 	return {
 		content: lines.join("\n"),

@@ -11,8 +11,10 @@ library and are also included in the installable package.
 Ask Pi:
 
 > Run `node examples/progress.mjs` using exec_command with a 500 ms yield and
-> a 20-second hard timeout. Keep the returned session ID, then collect its
-> completion with write_stdin. Do not start the command again.
+> a 20-second hard timeout and on_exit wake. Keep the returned session ID.
+> Inspect current progress once with write_stdin and yield_time_ms: 0, then
+> list this directory while the job runs. When notified, collect its final
+> output and report the result. Do not start the command again.
 
 The script prints six progress updates over three seconds, followed by
 `progress: done`. Expect a running `session_id` first and `exit_code: 0` after

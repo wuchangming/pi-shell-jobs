@@ -9,6 +9,7 @@ import { Notify } from "../src/notify.ts";
 import { HeadTailBuffer } from "../src/head-tail-buffer.ts";
 import { collectOutputUntilDeadline } from "../src/collect.ts";
 import { Gate } from "../src/notify.ts";
+import { SessionStore } from "../src/session-store.ts";
 
 function start(code: string, options: Partial<SessionSpawnOptions> = {}) {
 	return ExecSession.spawn(1, { command: [process.execPath, "-e", code], cwd: process.cwd(),
@@ -107,6 +108,31 @@ test("concurrent interaction is rejected and cancellation can bypass the reader"
 		assert.equal(await first, "exit");
 		assert.equal(await s.interact(async () => 42), 42);
 	} finally { await dispose(s); }
+});
+
+test("reclaiming completed inventory preserves its log and never stops a live job", async () => {
+	const store = new SessionStore({ maxSessions: 2, lruProtectedCount: 0 });
+	const completed = start('console.log("retained-after-eviction")');
+	const live = ExecSession.spawn(2, { command: [process.execPath, "-e", "setInterval(() => {}, 1000)"], cwd: process.cwd(), env: process.env, tty: false, timeoutSeconds: 10 });
+	let next: ExecSession | undefined;
+	try {
+		store.insert(completed);
+		store.insert(live);
+		// Wait for settlement without collecting its pending output.
+		await completed.outputClosed.closed();
+		for (let i = 0; i < 3; i++) assert.equal(store.values().length, 2);
+		store.assertCapacity();
+		next = ExecSession.spawn(3, { command: [process.execPath, "-e", "console.log('next')"], cwd: process.cwd(), env: process.env, tty: false, timeoutSeconds: 8 });
+		assert.equal(store.insert(next).pruned, completed);
+		assert.equal(store.get(completed.id), undefined);
+		assert.equal(store.size, 2);
+		assert.equal(live.hasExited, false);
+		assert.match(readFileSync(completed.logPath, "utf8"), /retained-after-eviction/);
+	} finally {
+		await dispose(completed);
+		await dispose(live);
+		if (next) await dispose(next);
+	}
 });
 
 test("cancelled output subscriptions release parked listeners without new output", async () => {

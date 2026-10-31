@@ -71,6 +71,24 @@ function makeCoordinator(opts: { failSends?: number } = {}) {
 const settle = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 
 describe("CompletionCoordinator", () => {
+	for (const failed of [false, true]) it(`nested observations wait through every enclosing tool; failure=${failed}`, async () => {
+		const { coordinator, sent } = makeCoordinator();
+		const s = new FakeSession(1);
+		coordinator.register(s);
+		coordinator.beginObservation(1, "root/1/1");
+		s.exit(7);
+		coordinator.markPendingTerminal(1, "root/1/1");
+		coordinator.handleToolExecutionEnd("root/1/1", false, "root/1");
+		await settle();
+		assert.equal(sent.length, 0);
+		coordinator.handleToolExecutionEnd("root/1", false, "root");
+		await settle();
+		assert.equal(sent.length, 0);
+		coordinator.handleToolExecutionEnd("root", failed);
+		await settle();
+		assert.equal(sent.length, failed ? 1 : 0);
+		assert.equal(coordinator.recordCount, 0);
+	});
 	it("unregistered sessions (on_exit omitted/none) never wake", async () => {
 		const { coordinator, sent } = makeCoordinator();
 		const s = new FakeSession(1);
@@ -298,16 +316,6 @@ describe("CompletionCoordinator", () => {
 		assert.equal(sent.length, 1);
 	});
 
-	it("list_sessions observing the exit before notification suppresses the wake", async () => {
-		const { coordinator, sent } = makeCoordinator();
-		const s = new FakeSession(1);
-		coordinator.register(s);
-		s.exit(0);
-		coordinator.observeViaListing(1); // reaped by list_sessions before the debounce
-		await settle();
-		assert.equal(sent.length, 0);
-	});
-
 	it("eviction of a live process suppresses the wake", async () => {
 		const { coordinator, sent } = makeCoordinator();
 		const s = new FakeSession(1);
@@ -359,7 +367,7 @@ describe("CompletionCoordinator", () => {
 		assert.ok(content.length < 2000, `content should be bounded; got ${content.length}`);
 		assert.match(content, /not user-authored instructions/);
 		assert.match(content, /write_stdin/);
-		assert.match(content, /continue the original task/);
+		assert.match(content, /still relevant, continue the original request/);
 	});
 });
 

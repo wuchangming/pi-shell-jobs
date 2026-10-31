@@ -17,10 +17,36 @@ function adapter(owner = {}) {
 	let callId = 0;
 	return { messages, owner,
 		async emit(event: string, data: any = {}) { for (const h of handlers.get(event) ?? []) await h(data, context); },
-		async call(name: string, args: any) { return tools.get(name).execute(`call-${++callId}`, args, undefined, undefined, context); },
+		async call(name: string, args: any, id = `call-${++callId}`) { return tools.get(name).execute(id, args, undefined, undefined, context); },
 	};
 }
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+test("reload upgrades a pre-receipt context without losing nested completion recovery", { timeout: 10000 }, async () => {
+	const old = adapter(), next = adapter(old.owner);
+	try {
+		await old.emit("session_start", { reason: "startup" });
+		const start = await old.call("exec_command", { cmd: `node -e "process.stdin.resume();process.stdin.on('end',()=>console.log('done'))"`, yield_time_ms: 250, on_exit: "wake" });
+		await old.emit("session_shutdown", { reason: "reload" });
+		const retained = (globalThis as any)[Symbol.for("pi-shell-jobs.reload.v1")].get(old.owner);
+		delete retained.terminalResults; delete retained.nestedResults;
+		const original = Object.getPrototypeOf(retained.coordinator);
+		Object.setPrototypeOf(retained.coordinator, Object.assign(Object.create(original), {
+			handleToolExecutionEnd(this: any, id: string, error: boolean) { original.handleToolExecutionEnd.call(this, id, error); },
+		}));
+		await next.emit("session_start", { reason: "reload" });
+		const sid = start.details.session_id;
+		await next.call("write_stdin", { session_id: sid, end_stdin: true, yield_time_ms: 5000 }, "root/1");
+		await next.emit("tool_execution_end", { toolCallId: "root/1", parentToolCallId: "root", isError: false });
+		await pause(300);
+		assert.equal(next.messages.length, 0);
+		await next.emit("tool_execution_end", { toolCallId: "root", isError: true });
+		assert.equal(next.messages.length, 1);
+		const recovered = await next.call("write_stdin", { session_id: sid, yield_time_ms: 0 });
+		assert.equal(recovered.details.output_replayed, true);
+		assert.match(recovered.details.output, /done/);
+	} finally { await next.emit("session_shutdown", { reason: "quit" }); }
+});
 
 test("reload transfers the same PID, output, deadline and pending completion to the new adapter", { timeout: 15000 }, async () => {
 	const old = adapter();

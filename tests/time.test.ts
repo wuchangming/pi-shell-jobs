@@ -10,13 +10,16 @@ import { MAX_EMPTY_POLL_ENV_VAR, nowUtcIso, parseYieldUntil, resolveEmptyPollYie
 
 describe("empty relative poll policy", () => {
 	it("keeps a short default and minimum, without a built-in maximum", () => {
-		for (const value of [undefined, 0, 0.5, 250, 4999]) {
+		for (const value of [undefined, 0.5, 250, 4999]) {
 			assert.equal(resolveEmptyPollYield(value, {}), 5000);
 		}
 		for (const value of [290_001, 900_000, 86_400_000, Number.MAX_SAFE_INTEGER]) {
 			assert.equal(resolveEmptyPollYield(value, {}), value);
 		}
 		assert.equal(resolveEmptyPollYield(5000.9, {}), 5000);
+		assert.equal(resolveEmptyPollYield(0, {}), 0);
+		assert.equal(resolveEmptyPollYield(0, { [MAX_EMPTY_POLL_ENV_VAR]: "5000" }), 0);
+		assert.throws(() => resolveEmptyPollYield(0, { [MAX_EMPTY_POLL_ENV_VAR]: "bad" }), /positive finite/);
 	});
 
 	it("rejects invalid tool durations rather than overflowing timers", () => {

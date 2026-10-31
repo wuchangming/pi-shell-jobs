@@ -83,6 +83,7 @@ interface SessionListItem {
 interface ListSessionsDetails {
 	sessions?: SessionListItem[];
 	active_count?: number;
+	completed_count?: number;
 	just_exited_count?: number;
 	tool_time_utc?: string;
 }
@@ -447,12 +448,12 @@ export function renderListSessionsResult(
 	container.clear();
 	const sessions = details.sessions;
 	const active = details.active_count ?? sessions.filter((session) => session.running).length;
-	const justExited = details.just_exited_count ?? sessions.filter((session) => !session.running).length;
-	const summary = `${active} live${justExited ? ` · ${justExited} just exited` : ""}`;
+	const completed = details.completed_count ?? details.just_exited_count ?? sessions.filter((session) => !session.running).length;
+	const summary = `${active} live${completed ? ` · ${completed} completed` : ""}`;
 	container.addChild(new Text(`\n${theme.fg("muted", summary)}`, 0, 0));
 
 	if (sessions.length === 0) {
-		container.addChild(new Text(`\n${theme.fg("muted", "(no live sessions)")}`, 0, 0));
+		container.addChild(new Text(`\n${theme.fg("muted", "(no retained sessions)")}`, 0, 0));
 	} else {
 		// A settled transcript row is rendered on every host redraw (including
 		// unrelated streaming and typing). Cache its bounded inventory by width

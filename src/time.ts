@@ -38,8 +38,11 @@ export function resolveEmptyPollYield(ms: number | undefined, env: NodeJS.Proces
 	if (ms !== undefined && (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0 || ms > Number.MAX_SAFE_INTEGER)) {
 		throw new Error("write_stdin: yield_time_ms must be a non-negative finite duration no greater than Number.MAX_SAFE_INTEGER.");
 	}
-	const duration = Math.max(MIN_EMPTY_YIELD_TIME_MS, Math.floor(ms ?? MIN_EMPTY_YIELD_TIME_MS));
 	const cap = resolveMaxEmptyPollMs(env);
+	// Only an explicit zero means an immediate read. Positive fractions still
+	// use the ordinary minimum; invalid operator configuration still fails closed.
+	if (ms === 0) return 0;
+	const duration = Math.max(MIN_EMPTY_YIELD_TIME_MS, Math.floor(ms ?? MIN_EMPTY_YIELD_TIME_MS));
 	if (cap !== undefined && duration > cap) {
 		throw new Error(
 			`write_stdin: yield_time_ms ${duration} exceeds the configured empty-poll cap of ${cap} ms ` +

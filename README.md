@@ -54,7 +54,11 @@ Ask Pi:
 
 Pi uses `exec_command` with a short yield and `on_exit: "wake"`. The job keeps
 running after the tool returns. Completion can resume Pi once; if Pi already
-observed the exit, it does not send a second notification.
+collected the final result, it does not enqueue a second notification.
+For finite background work needed to finish your request, Pi is guided to enable
+wake without a separate request for notification; services and start-only jobs
+stay quiet by default. To check progress now, Pi uses `write_stdin` with
+`yield_time_ms: 0`. It reads current output immediately without restarting the job.
 
 For an interactive task:
 
@@ -74,7 +78,7 @@ an interactive line reader, both written in plain Node for all supported OSes.
 | --- | --- |
 | `exec_command` | Start a command; get an exit result or a live `session_id`. |
 | `write_stdin` | Read output, send input, close pipe stdin, or resize a terminal. |
-| `list_sessions` | Inspect jobs and collect terminal status. |
+| `list_sessions` | Inspect running and retained completed jobs without consuming results. |
 | `set_on_exit` | Enable or disable automatic completion notification. |
 | `kill_session` | Stop a job and report whether its exit was confirmed. |
 

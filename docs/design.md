@@ -26,7 +26,7 @@ moving development checkout.
 | Reload | Preserve the actual runtime, PID, buffers, deadline and pending notifications in the same Pi process. |
 | Session change | `new`, `resume`, `fork` and `quit` request cleanup; no notification crosses that boundary. |
 | Branch navigation | `/tree` keeps jobs in the same session and surfaces live jobs in the UI. |
-| Completion | Observe completion at finalized `tool_execution_end`, not when an execute handler merely returns. |
+| Completion | Direct calls commit at finalized `tool_execution_end`; nested calls transfer observation to the enclosing tool and commit with its successful recovery receipt. |
 
 ## Structure
 
@@ -36,7 +36,7 @@ moving development checkout.
 - `session-store.ts`: bounded admission and completed-history reclamation.
 - `collect.ts`, `head-tail-buffer.ts`, `notify.ts`, `long-wait.ts`: bounded
   collection and interruptible waits, with cancellable subscriptions.
-- `completion.ts`: observation leases, batched completion delivery, failed-send
+- `completion.ts`: observation leases, batched completion delivery, observable submission-error
   recovery and suppression during explicit cancellation.
 - `index.ts`: Pi tools, lifecycle, ownership handoff and UI integration.
 - `tool-result.ts`, `script-result.ts`, `render.ts`: model text, typed codemode
@@ -185,3 +185,58 @@ providers verify host integration; live-model behavior is a separate check.
 The repository overrides the development host's transitive `undici` dependency
 to the patched 8.12.2-compatible line. Package overrides do not modify an
 already installed Pi host; host dependency updates remain with Pi.
+
+
+## Progress and completion refinement (unreleased)
+
+The execution model follows [Codex unified execution at 615be37](https://github.com/openai/codex/tree/615be37b2b0901b6d6810c37f02c1c7e96c99a15/codex-rs/core/src/unified_exec):
+one controllable process identity, bounded output, and separate UI streaming and
+model tool results. Immediate empty reads are an explicit extension here; they
+do not wait for future output. Positive waits retain their previous policy.
+
+[DeepSeek Harness jobs at ce7073d](https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/jobs/tool-jobs/src/index.ts)
+informs task responsibility and the separation of inventory, output consumption
+and completion delivery. Listing is a non-consuming snapshot, not an
+acknowledgement of the final result. Completed records remain bounded by the
+existing registry and log policies. This extension does not add a producer
+progress protocol, keyword alerts, or silent-process diagnosis.
+
+Integration uses the published [Pi 1.4 extension API](https://github.com/earendil-works/pi/blob/v1.4.0/packages/coding-agent/src/core/extensions/types.ts)
+and [session message routing](https://github.com/earendil-works/pi/blob/v1.4.0/packages/coding-agent/src/core/agent-session.ts).
+`sendMessage` with `triggerTurn: true` and `deliverAs: "followUp"` queues behind
+busy work or starts an idle run. The extension does not introduce a scheduler,
+steer on ordinary output, replace codemode, or manipulate private host queues.
+`tool_execution_end` remains the acknowledgement boundary for tool results;
+`agent_settled` is a flush opportunity, not a periodic polling loop.
+
+Pi's ordinary extension `sendMessage` returns void and routes asynchronous
+failures to the host's error channel. Coordinator retry tests cover only errors
+the injected sender exposes; they do not prove host-level delivery receipts.
+Deduplication prevents repeated submission in the normal path, not exactly-once
+end-to-end delivery. A queued follow-up cannot be recalled by disarming, so its
+text asks the model to continue only work still relevant to the user.
+
+The API default remains `on_exit: "none"`. Tool guidelines explicitly select
+wake for finite background work needed by the current request, with no separate
+notification request needed. Services, REPLs and start-only tasks stay quiet;
+the model disarms abandoned work. No command parser guesses these intentions.
+
+### Agent-visible delivery and recovery
+
+A nested `tool_execution_end` is not a model-visible result in Pi 1.4. Nested
+terminal observations transfer to their enclosing call, recursively. The outer
+`tool_result` hook appends bounded metadata receipts before finalization;
+errors preserve wake eligibility. Receipts expose handles even when scripts
+print nothing, without replacing native codemode or expanding raw child logs.
+
+Terminal reads in nested calls retain their bounded response in a WeakMap keyed
+by the registered session. The 64-session registry bounds retention; eviction
+releases the weak key and does not terminate live jobs. Repeated nested reads
+replay the saved terminal output. Direct reads retain the original consuming
+semantics. Short-lived nested exec results use the same recovery mechanism.
+Recovery receipts are bounded to 64 latest session records per enclosing call
+and 16 displayed records; larger batches direct the model to inventory.
+
+Shared workflow guidance is injected independently of individual tool discovery.
+Schema validation rejects unknown fields instead of accepting ineffective
+operations. Regression tests cover the tool contract and host lifecycle.

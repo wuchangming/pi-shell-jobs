@@ -35,10 +35,11 @@ const outputFields = {
 	supervision: Type.Optional(supervisionSchema),
 	output: Type.String({
 		description:
-			"Bounded, terminal-safe tail of the child output with real newlines. Print it with text(r.output) rather than printing the whole result object.",
+			"Bounded, terminal-safe output with real newlines. Print needed output with text(r.output) and also report status, session_id and exit_code. Do not discard failure or truncation metadata.",
 	}),
 	truncated: Type.Boolean({ description: "True when earlier output was dropped; retained output is in log_path." }),
 	omitted_bytes: Type.Optional(Type.Number({ description: "Middle bytes dropped by the in-memory retention cap." })),
+	output_bytes_total: Type.Optional(Type.Number({ description: "Cumulative bytes produced by the job; not a completion percentage." })),
 	exit_code: Type.Optional(Type.Number({ description: "Exit code once the process has exited." })),
 	signal: Type.Optional(Type.String({ description: "Signal that terminated the process, if any." })),
 	failure_message: Type.Optional(Type.String()),
@@ -54,7 +55,9 @@ export const processScriptResultSchema = Type.Object({
 	),
 	...outputFields,
 	note: Type.Optional(Type.String()),
+	wait_mode: Type.Optional(Type.Union([Type.Literal("immediate"), Type.Literal("relative"), Type.Literal("absolute")])),
 	wait_status: Type.Optional(Type.String()),
+	output_replayed: Type.Optional(Type.Boolean({ description: "True when rereading a retained terminal result from a nested call; output repeats the final read, not a new delta." })),
 	on_exit: Type.Optional(Type.Union([Type.Literal("none"), Type.Literal("wake")])),
 	tool_time_utc: Type.Optional(Type.String({ description: "Host UTC time, for computing yield_until deadlines." })),
 });
@@ -69,13 +72,16 @@ export function processScriptResult(shape: ProcessResultDetails): ProcessScriptR
 		supervision: shape.supervision,
 		truncated: shape.truncation?.truncated === true,
 		omitted_bytes: shape.omitted_bytes || undefined,
+		output_bytes_total: shape.output_bytes_total,
 		exit_code: shape.exit_code,
 		signal: optionalMeta(shape.signal),
 		failure_message: optionalMeta(shape.failure_message),
 		log_path: optionalMeta(shape.log_path),
 		wall_time_seconds: shape.wall_time_seconds,
 		note: optionalMeta(shape.note),
+		wait_mode: shape.wait_mode,
 		wait_status: shape.wait_status,
+		output_replayed: shape.output_replayed,
 		on_exit: shape.on_exit,
 		tool_time_utc: shape.tool_time_utc,
 	});
@@ -104,6 +110,7 @@ export function killScriptResult(shape: KillResultDetails): KillScriptResult {
 		supervision: shape.supervision,
 		truncated: shape.truncation?.truncated === true,
 		omitted_bytes: shape.omitted_bytes || undefined,
+		output_bytes_total: shape.output_bytes_total,
 		exit_code: shape.exit_code,
 		signal: optionalMeta(shape.signal),
 		failure_message: optionalMeta(shape.failure_message),
@@ -157,7 +164,8 @@ export const listSessionsScriptResultSchema = Type.Object({
 			tty: Type.Boolean(),
 			pid: Type.Optional(Type.Number()),
 			elapsed_ms: Type.Number(),
-			running: Type.Boolean({ description: "False for sessions that just exited; they are removed after this listing." }),
+			output_bytes_total: Type.Number(),
+			running: Type.Boolean({ description: "False for retained completed sessions; collect final output with write_stdin." }),
 			wake_armed: Type.Boolean(),
 			exit_code: Type.Optional(Type.Number()),
 			signal: Type.Optional(Type.String()),
@@ -165,7 +173,8 @@ export const listSessionsScriptResultSchema = Type.Object({
 		}),
 	),
 	active_count: Type.Number(),
-	just_exited_count: Type.Number(),
+	completed_count: Type.Number(),
+	just_exited_count: Type.Number({ description: "Compatibility alias of completed_count." }),
 	tool_time_utc: Type.String(),
 });
 export type ListSessionsScriptResult = Static<typeof listSessionsScriptResultSchema>;
@@ -179,6 +188,7 @@ export function listSessionsScriptResult(value: {
 		tty: boolean;
 		pid?: number;
 		elapsed_ms: number;
+		output_bytes_total: number;
 		running: boolean;
 		wake_armed: boolean;
 		exit_code?: number | null;
@@ -186,6 +196,7 @@ export function listSessionsScriptResult(value: {
 		log_path?: string;
 	}>;
 	active_count: number;
+	completed_count: number;
 	just_exited_count: number;
 	tool_time_utc: string;
 }): ListSessionsScriptResult {
@@ -199,6 +210,7 @@ export function listSessionsScriptResult(value: {
 				tty: s.tty,
 				pid: s.pid,
 				elapsed_ms: s.elapsed_ms,
+				output_bytes_total: s.output_bytes_total,
 				running: s.running,
 				wake_armed: s.wake_armed,
 				exit_code: s.exit_code ?? undefined,
@@ -207,7 +219,8 @@ export function listSessionsScriptResult(value: {
 			}),
 		),
 		active_count: value.active_count,
-		just_exited_count: value.just_exited_count,
+		completed_count: value.completed_count,
+		just_exited_count: value.completed_count,
 		tool_time_utc: value.tool_time_utc,
 	};
 }

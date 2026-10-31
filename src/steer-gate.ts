@@ -27,8 +27,9 @@ export const STEER_NOTE =
 	"returned early: the user sent a steering message, which Pi delivers next. " +
 	"The process was not interrupted — it is still running and still buffering " +
 	"output, so the next poll returns everything produced since. Read the steer " +
-	"first, then re-poll this session_id only if it is still relevant (optionally " +
-	"with on_exit: \"wake\" to be woken when it exits).";
+	"first, then re-poll this session_id only if it is still relevant. To enable " +
+	"completion notification, call set_on_exit({session_id, on_exit: \"wake\"}) separately; " +
+	"write_stdin does not accept on_exit.";
 
 /** Thrown for nested (codemode) calls while a steer is pending, so a polling script ends. */
 export const STEER_NESTED_ERROR =

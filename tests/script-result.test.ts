@@ -74,13 +74,14 @@ function makeHarness() {
 
 describe("script result projections", () => {
 	it("exited process: real newlines, exit code, schema-valid plain JSON", () => {
-		const details = finalizeProcessResult(processInput());
+		const details = finalizeProcessResult(processInput({ totalBytes: 120 }));
 		const value = processScriptResult(details);
 		assert.ok(Value.Check(processScriptResultSchema, value));
 		assertPlainJson(value);
 		assert.equal(value.status, "exited");
 		assert.equal(value.running, false);
 		assert.equal(value.exit_code, 0);
+		assert.equal(value.output_bytes_total, 120);
 		assert.equal(value.output, "hello\nworld\n");
 		assert.equal(value.truncated, false);
 		assert.equal(value.session_id, undefined);

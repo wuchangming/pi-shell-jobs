@@ -15,6 +15,7 @@ export default function (pi) {
 		["exec_command", () => ({ cmd: "node examples/interactive.mjs", yield_time_ms: 500, timeout_seconds: 20 })],
 		["set_on_exit", () => ({ session_id: sessionId, on_exit: "wake" })],
 		["list_sessions", () => ({})],
+		["write_stdin", () => ({ session_id: sessionId, yield_time_ms: 0 })],
 		["set_on_exit", () => ({ session_id: sessionId, on_exit: "none" })],
 		["write_stdin", () => ({ session_id: sessionId, chars: "hello\n", end_stdin: true, yield_time_ms: 5000 })],
 		["exec_command", () => ({ cmd: "node examples/interactive.mjs", yield_time_ms: 500, timeout_seconds: 20 })],

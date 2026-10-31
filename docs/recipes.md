@@ -9,15 +9,15 @@ set `workdir` when running a command elsewhere.
 
 ## Run a build and resume when it finishes
 
-Ask: “Run the build in the background; tell me when it finishes. Stop it after
-ten minutes if it has not completed.” Pi calls `exec_command`:
+Ask: “Run the build, update the documentation while it runs, then check the
+build result and finish the task. Stop the build after ten minutes.” Pi calls `exec_command`:
 
 ```json
 {"cmd":"npm run build","yield_time_ms":1000,"timeout_seconds":600,"on_exit":"wake"}
 ```
 
 Use your project's actual build command. A live result contains `session_id` and
-`log_path`. Pi can do other work. If completion is not observed by a tool first,
+`log_path`. Pi can do other work. If the final result is not collected first,
 one follow-up notification resumes the agent. Disarm with `set_on_exit` when the
 task is no longer relevant:
 
@@ -27,9 +27,26 @@ task is no longer relevant:
 
 This does not stop the job. `kill_session` stops it and disarms wake together.
 
+## Inspect progress immediately
+
+Call `write_stdin` with the same ID and no input:
+
+```json
+{"session_id":1,"yield_time_ms":0}
+```
+
+A running job returns `wait_mode: "immediate"`, `wait_status: "snapshot"` and
+unread output. Empty output means no new output, not a stalled process.
+Read `supervision.quiet_ms` as elapsed silence, not a diagnosis. Keep working
+rather than repeatedly checking an unchanged snapshot.
+
+`list_sessions` inspects state without consuming output or completion notices.
+Repeated listing does not remove completed jobs; their results remain available
+until collected or evicted to admit another job.
+
 ## Collect output without restarting
 
-Call `write_stdin` with the same ID:
+When your next step depends on the result, wait with `write_stdin`:
 
 ```json
 {"session_id":1,"yield_time_ms":10000}

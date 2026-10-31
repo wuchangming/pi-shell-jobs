@@ -46,7 +46,7 @@ function run({ fixed = true, pattern = "parity", mode = "on", budget = 3000, act
 }
 
 for (const mode of ["on", "only"] as const) {
-	test(`native Pi codemode uses shell jobs structured results: ${mode}`, { timeout: 40_000 }, () => {
+	test(`native Pi codemode structured sample and store/load parity: ${mode}`, { timeout: 40_000 }, () => {
 		const result = run({ mode });
 		assert.ok(result.ends.length > 0);
 		assert.doesNotMatch(result.stderr, /was not loaded|registers tool|conflict/i);

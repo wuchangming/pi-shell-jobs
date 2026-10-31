@@ -51,7 +51,7 @@ test("packed package installs, is discovered by Pi and executes pipes and PTYs",
 				installed, { JOBS_PACKAGE_SCENARIO: scenario });
 			const events = result.stdout.split("\n").filter(line => line.startsWith("{")).map(line => JSON.parse(line));
 			const ends = events.filter(event => event.type === "tool_execution_end");
-			assert.equal(ends.length, scenario === "pipes" ? 9 : 3, result.stdout);
+			assert.equal(ends.length, scenario === "pipes" ? 10 : 3, result.stdout);
 			for (const event of ends) assert.equal(event.isError, false, JSON.stringify(event));
 			assert.match(result.stdout, /PACKAGE_SMOKE_OK/);
 			assert.doesNotMatch(result.stderr, /was not loaded|conflict|failed to load/i);
@@ -60,6 +60,9 @@ test("packed package installs, is discovered by Pi and executes pipes and PTYs",
 			assert.match(output, /interactive: done/);
 			assert.equal(ends.at(-1).result.details.exit_code, 0);
 			if (scenario === "pipes") {
+				const snapshot = ends.find(event => event.result.details.wait_mode === "immediate");
+				assert.equal(snapshot?.result.details.wait_status, "snapshot");
+				assert.equal(snapshot.result.structuredContent.wait_mode, "immediate");
 				assert.equal(ends.find(event => event.toolName === "kill_session").result.details.killed, true);
 				assert.match(output, /progress: done/);
 			} else assert.equal(ends[0].result.details.tty, true);

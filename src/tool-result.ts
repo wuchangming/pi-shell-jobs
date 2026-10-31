@@ -49,9 +49,10 @@ export interface ProcessResultDetails extends OutputResultDetails {
 	operation: ProcessOperation;
 	status: ProcessStatus;
 	yield_time_ms?: number;
-	wait_mode?: "relative" | "absolute";
+	wait_mode?: "immediate" | "relative" | "absolute";
 	wait_status?:
 		| "completed"
+		| "snapshot"
 		| "relative_deadline_reached"
 		| "absolute_deadline_reached"
 		| "cancelled"
@@ -60,8 +61,9 @@ export interface ProcessResultDetails extends OutputResultDetails {
 	effective_wait_ms?: number;
 	on_exit?: OnExitPolicy;
 	completion_notification?: "armed";
-	completion_delivery?: "direct";
-	on_exit_wake?: "consumed";
+	completion_delivery?: "direct" | "enclosing_tool";
+	on_exit_wake?: "consumed" | "pending";
+	output_replayed?: boolean;
 	tool_time_utc?: string;
 }
 
@@ -252,6 +254,7 @@ export function renderProcessResultText(shape: ProcessResultDetails): string {
 	if (shape.note) lines.push(`note: ${safeMeta(shape.note)}`);
 	if (shape.wait_mode) lines.push(`wait_mode: ${safeMeta(shape.wait_mode)}`);
 	if (shape.wait_status) lines.push(`wait_status: ${safeMeta(shape.wait_status)}`);
+	if (shape.output_replayed) lines.push("output_replayed: true");
 	if (shape.yield_until) lines.push(`yield_until: ${safeMeta(shape.yield_until)}`);
 	if (shape.effective_wait_ms !== undefined) lines.push(`effective_wait_ms: ${shape.effective_wait_ms}`);
 	if (shape.on_exit) lines.push(`on_exit: ${safeMeta(shape.on_exit)}`);

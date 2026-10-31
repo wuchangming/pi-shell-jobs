@@ -844,10 +844,10 @@ describe("shell-jobs e2e", () => {
 		await h.emit("session_shutdown");
 	});
 
-	it("list_sessions reports just-exited sessions once with exit info, then removes them", async () => {
+	it("list_sessions retains completed sessions until output is collected", async () => {
 		const h = makeHarness();
 		await h.emit("session_start");
-		const r1 = await h.call("exec_command", { cmd: "sleep 0.3", yield_time_ms: 250 });
+		const r1 = await h.call("exec_command", { cmd: "sleep 0.3; echo final-list-output", yield_time_ms: 250 });
 		const sid = r1.details.session_id;
 		assert.ok(typeof sid === "number", JSON.stringify(r1.details));
 		await new Promise((r) => setTimeout(r, 600));
@@ -861,7 +861,14 @@ describe("shell-jobs e2e", () => {
 		assert.ok(l1.content[0].text.includes("exited"), l1.content[0].text);
 
 		const l2 = await h.call("list_sessions", {});
-		assert.equal(l2.details.sessions.length, 0, JSON.stringify(l2.details));
+		assert.equal(l2.details.sessions.length, 1, JSON.stringify(l2.details));
+		assert.equal(l2.details.completed_count, 1);
+		assert.equal(l2.details.just_exited_count, l2.details.completed_count);
+		const output = await h.call("write_stdin", { session_id: sid, yield_time_ms: 0 });
+		assert.match(output.details.output, /final-list-output/);
+		assert.equal(output.details.wait_mode, "immediate");
+		assert.equal(output.details.wait_status, "completed");
+		assert.equal((await h.call("list_sessions", {})).details.sessions.length, 0);
 		await h.emit("session_shutdown");
 	});
 
