@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.1.2] - 2026-10-31
 
 - Track nested completion through the enclosing tool, add automatic model-visible
   recovery receipts, and retain bounded terminal results for replay after script

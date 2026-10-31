@@ -29,7 +29,7 @@ pi install npm:pi-shell-jobs
 ```
 
 Start a new Pi session, or run `/reload` in the current one. Add `--local` for a
-project-only install. Use `npm:pi-shell-jobs@0.1.1` to pin this release.
+project-only install. Use `npm:pi-shell-jobs@0.1.2` to pin this release.
 
 ```sh
 pi list

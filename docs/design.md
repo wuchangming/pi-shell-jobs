@@ -187,7 +187,7 @@ to the patched 8.12.2-compatible line. Package overrides do not modify an
 already installed Pi host; host dependency updates remain with Pi.
 
 
-## Progress and completion refinement (unreleased)
+## Progress and completion refinement (0.1.2)
 
 The execution model follows [Codex unified execution at 615be37](https://github.com/openai/codex/tree/615be37b2b0901b6d6810c37f02c1c7e96c99a15/codex-rs/core/src/unified_exec):
 one controllable process identity, bounded output, and separate UI streaming and
